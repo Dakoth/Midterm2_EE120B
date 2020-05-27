@@ -12,10 +12,9 @@
 #ifdef _SIMULATE_
 #include "simAVRHeader.h"
 #endif
-//#include "timer.h"
+#include "timer.h"
 
-//TIMER STUFF
-///////////////////////////////////////////////////////////////////////
+/*TIMER STUFF
 volatile unsigned char TimerFlag = 0; //stuff added 
 
 unsigned long _avr_timer_M = 1;
@@ -67,7 +66,8 @@ void TimerSet(unsigned long M) {
 	_avr_timer_M = M;
 	_avr_timer_cntcurr = _avr_timer_M;
 }
-/////////////////////////////////////////////////////////////////////////////////////
+
+*/
 
 
 /* SM state declarations --- fill in as needed */
@@ -88,7 +88,7 @@ read_states read_state;
 /* main function --- do not alter */
 int main(void) {
     /* DDR and PORT initializations */
-    DDRA = 0x00; PORTA = 0xFF;
+    DDRA = 0x00; PORTA = 0xFF; //
     DDRB = 0xFF; PORTB = 0x00;
 
     // Common period for all tasks set to 100ms
