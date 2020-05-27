@@ -1,109 +1,69 @@
-/*	Author: agonz250
- *  Partner(s) Name: 
- *	Lab Section:
- *	Assignment: Lab #  Exercise #
- *	Exercise Description: [optional - include for your own benefit]
- *
- *	I acknowledge all content contained herein, excluding template or example
- *	code, is my own original work.
- */
-#include <avr/io.h>
+// Permission to copy is granted provided that this header remains intact. 
+// This software is provided with no warranties.
+
+////////////////////////////////////////////////////////////////////////////////
+
+#ifndef TIMER_H
+#define TIMER_H
+
 #include <avr/interrupt.h>
-#ifdef _SIMULATE_
-#include "simAVRHeader.h"
-#endif
-#include "timer.h"
 
-/*TIMER STUFF
-volatile unsigned char TimerFlag = 0; //stuff added 
+volatile unsigned char TimerFlag = 0; // TimerISR() sets this to 1. C programmer should clear to 0.
 
-unsigned long _avr_timer_M = 1;
-unsigned long _avr_timer_cntcurr = 0;
+// Internal variables for mapping AVR's ISR to our cleaner TimerISR model.
+unsigned long _avr_timer_M = 1; // Start count from here, down to 0. Default 1ms
+unsigned long _avr_timer_cntcurr = 0; // Current internal count of 1ms ticks
+
+// Set TimerISR() to tick every M ms
+void TimerSet(unsigned long M) {
+	_avr_timer_M = M;
+	_avr_timer_cntcurr = _avr_timer_M;
+}
 
 void TimerOn() {
-	//AVR timer/counter controller register ....
-	TCCR1B = 0x0B;
+	// AVR timer/counter controller register TCCR1
+	TCCR1B 	= 0x0B;	// bit3 = 1: CTC mode (clear timer on compare)
+					// bit2bit1bit0=011: prescaler /64
+					// 00001011: 0x0B
+					// SO, 8 MHz clock or 8,000,000 /64 = 125,000 ticks/s
+					// Thus, TCNT1 register will count at 125,000 ticks/s
 
-	//AVR output compare register ....
-	OCR1A = 125;
+	// AVR output compare register OCR1A.
+	OCR1A 	= 125;	// Timer interrupt will be generated when TCNT1==OCR1A
+					// We want a 1 ms tick. 0.001 s * 125,000 ticks/s = 125
+					// So when TCNT1 register equals 125,
+					// 1 ms has passed. Thus, we compare to 125.
+					// AVR timer interrupt mask register
 
-	//AVR timer interrupt mask register
-	TIMSK1 = 0x02;
+	TIMSK1 	= 0x02; // bit1: OCIE1A -- enables compare match interrupt
 
-	//initialize avr counter
-	TCNT1=0;
+	//Initialize avr counter
+	TCNT1 = 0;
 
+	// TimerISR will be called every _avr_timer_cntcurr milliseconds
 	_avr_timer_cntcurr = _avr_timer_M;
-	//TimerIRS called every _avr ... milliseconds
-	//
-	
-	//enable global interrupts
-	SREG |= 0x80; //0x80: 1000000
+
+	//Enable global interrupts
+	SREG |= 0x80;	// 0x80: 1000000
 }
 
 void TimerOff() {
-	TCCR1B = 0x00; //timer off
+	TCCR1B 	= 0x00; // bit3bit2bit1bit0=0000: timer off
 }
 
 void TimerISR() {
 	TimerFlag = 1;
 }
 
-//TimerISR() calls this 
-ISR(TIMER1_COMPA_vect) {
-	//cpu calls when TCNT1 == OCR1
-	_avr_timer_cntcurr--;	//counts down to 0
-
-	if (_avr_timer_cntcurr == 0) {
-		TimerISR();	//calls ISR that user uses
+// In our approach, the C programmer does not touch this ISR, but rather TimerISR()
+ISR(TIMER1_COMPA_vect)
+{
+	// CPU automatically calls when TCNT0 == OCR0 (every 1 ms per TimerOn settings)
+	_avr_timer_cntcurr--; 			// Count down to 0 rather than up to TOP
+	if (_avr_timer_cntcurr == 0) { 	// results in a more efficient compare
+		TimerISR(); 				// Call the ISR that the user uses
 		_avr_timer_cntcurr = _avr_timer_M;
-
 	}
 }
 
-//Set TimerISR() to tick every M ms
-void TimerSet(unsigned long M) {
-	_avr_timer_M = M;
-	_avr_timer_cntcurr = _avr_timer_M;
-}
-
-*/
-
-
-/* SM state declarations --- fill in as needed */
-typedef enum output_states { OInit, Ooutput } output_states;
-typedef enum read_states { RInit, Rread } read_states;
-
-/* shared variables --- fill in as needed */
-unsigned char PA;
-
-/* state variables --- do not alter */
-output_states output_state;
-read_states read_state;
-
-/* SM definitions --- complete each task as a SM */
-#include "output.h"
-#include "read.h"
-
-/* main function --- do not alter */
-int main(void) {
-    /* DDR and PORT initializations */
-    DDRA = 0x00; PORTA = 0xFF; //
-    DDRB = 0xFF; PORTB = 0x00;
-
-    // Common period for all tasks set to 100ms
-    TimerSet(100);
-    TimerOn();
-
-    // init state vars
-    output_state = OInit;
-    read_state = RInit;
-
-    while (1) {
-        Read();
-        Output();
-        while (!TimerFlag) { }
-        TimerFlag = 0;
-    }
-    return 1;
-}
+#endif //TIMER_H
