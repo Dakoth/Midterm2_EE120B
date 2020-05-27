@@ -1,69 +1,72 @@
-// Permission to copy is granted provided that this header remains intact. 
-// This software is provided with no warranties.
+/*	Author: <your name>
+ *	Lab Section:
+ *  Exam #2
+ *
+ *	I acknowledge all content contained herein, excluding template or example
+ *	code, is my own original work.
+ */
+#include <avr/io.h>
+#ifdef _SIMULATE_
+#include "simAVRHeader.h"
+#endif
+#include "timer.h"
 
-////////////////////////////////////////////////////////////////////////////////
+/* SM state declarations --- fill in as needed */
+typedef enum ping_states { PInit,                                           } ping_states;
+typedef enum detect_eq_states { DEQInit,                                    } detect_eq_states;
+typedef enum detect_max_amp_states { DMAInit,                               } detect_max_amp_states;
+typedef enum detect_zc_states { DZCInit,                                    } detect_zc_states;
+typedef enum transmit_states {TInit,                                        } transmit_states;
 
-#ifndef TIMER_H
-#define TIMER_H
+/* shared variables --- fill in as needed */
 
-#include <avr/interrupt.h>
 
-volatile unsigned char TimerFlag = 0; // TimerISR() sets this to 1. C programmer should clear to 0.
 
-// Internal variables for mapping AVR's ISR to our cleaner TimerISR model.
-unsigned long _avr_timer_M = 1; // Start count from here, down to 0. Default 1ms
-unsigned long _avr_timer_cntcurr = 0; // Current internal count of 1ms ticks
 
-// Set TimerISR() to tick every M ms
-void TimerSet(unsigned long M) {
-	_avr_timer_M = M;
-	_avr_timer_cntcurr = _avr_timer_M;
+
+/* state variables --- do not alter */
+ping_states ping_state;
+detect_eq_states detect_eq_state;
+detect_max_amp_states detect_max_amp_state;
+detect_zc_states detect_zc_state;
+transmit_states transmit_state;
+
+/* SM definitions --- complete each task as a SM in the appropriate file.
+ * Alternatively, you can remove the #include statement and insert your
+ *   SM implementation directly. 
+ */
+#include "ping.h"
+#include "detect_eq.h"
+#include "detect_max_amp.h"
+#include "detect_zc.h"
+#include "transmit.h"
+
+
+/* main function --- do not alter */
+int main(void) {
+    /* DDR and PORT initializations */
+    DDRA = 0x00; PORTA = 0xFF;
+    DDRB = 0xFF; PORTB = 0x00;
+
+    // Common period for all tasks set to 100ms
+    TimerSet(100);
+    TimerOn();
+
+    // init state vars
+    ping_state = PInit;
+    detect_eq_state = DEQInit;
+    detect_max_amp_state = DMAInit;
+    detect_zc_state = DZCInit;
+    transmit_state = TInit;
+
+    while (1) {
+        Ping();
+        Detect_EQ();
+        Detect_Max_Amp();
+        Detect_ZC();
+        Transmit();
+        while (!TimerFlag) { }
+        TimerFlag = 0;
+    }
+    return 1;
 }
-
-void TimerOn() {
-	// AVR timer/counter controller register TCCR1
-	TCCR1B 	= 0x0B;	// bit3 = 1: CTC mode (clear timer on compare)
-					// bit2bit1bit0=011: prescaler /64
-					// 00001011: 0x0B
-					// SO, 8 MHz clock or 8,000,000 /64 = 125,000 ticks/s
-					// Thus, TCNT1 register will count at 125,000 ticks/s
-
-	// AVR output compare register OCR1A.
-	OCR1A 	= 125;	// Timer interrupt will be generated when TCNT1==OCR1A
-					// We want a 1 ms tick. 0.001 s * 125,000 ticks/s = 125
-					// So when TCNT1 register equals 125,
-					// 1 ms has passed. Thus, we compare to 125.
-					// AVR timer interrupt mask register
-
-	TIMSK1 	= 0x02; // bit1: OCIE1A -- enables compare match interrupt
-
-	//Initialize avr counter
-	TCNT1 = 0;
-
-	// TimerISR will be called every _avr_timer_cntcurr milliseconds
-	_avr_timer_cntcurr = _avr_timer_M;
-
-	//Enable global interrupts
-	SREG |= 0x80;	// 0x80: 1000000
-}
-
-void TimerOff() {
-	TCCR1B 	= 0x00; // bit3bit2bit1bit0=0000: timer off
-}
-
-void TimerISR() {
-	TimerFlag = 1;
-}
-
-// In our approach, the C programmer does not touch this ISR, but rather TimerISR()
-ISR(TIMER1_COMPA_vect)
-{
-	// CPU automatically calls when TCNT0 == OCR0 (every 1 ms per TimerOn settings)
-	_avr_timer_cntcurr--; 			// Count down to 0 rather than up to TOP
-	if (_avr_timer_cntcurr == 0) { 	// results in a more efficient compare
-		TimerISR(); 				// Call the ISR that the user uses
-		_avr_timer_cntcurr = _avr_timer_M;
-	}
-}
-
-#endif //TIMER_H
